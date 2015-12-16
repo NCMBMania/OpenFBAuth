@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Facebook Login JavaScript Example</title>
+<meta charset="UTF-8">
+</head>
+<script src="bower_components/ncmb/ncmb.min.js"></script>
+<script src="bower_components/openfb/openfb.js"></script>
+<script>
+  var apikey = "";
+  var clientkey = "";
+  var ncmb = new NCMB(apikey, clientkey);
+</script>
+<body>
+<script>
+  function statusChangeCallback(response) {
+    if (response.status === 'connected') {
+      var auth = response.authResponse; // Facebookの認証レスポンス
+
+      // --mobile backend実装部分--
+
+      // expiresInをセッショントークンを有効期限（残秒）から失効日時に変換
+      var expire_date = new Date(  auth.expiresIn * 1000 + (new Date()).getTime()).toJSON();
+      var date = {__type:"Date", iso:expire_date}; // Date型を保存できる形式に成型
+      // 認証に必要なパラメータをオブジェクトにまとめる
+      var authData = {id:auth.userID,
+                      access_token:auth.accessToken,
+                      expiration_date:date};
+      var user = new ncmb.User();
+      user.signUpWith("facebook", authData) // ユーザの登録
+          .then(function(user){
+            console.log("First then", user);
+            return ncmb.User.loginWith(user); // SNS連携したユーザでログイン
+          })
+          .then(function(user){
+            // ログイン後処理
+            var status = document.querySelector('#status');
+            status.innerText = "ログインしています";
+          })
+          .catch(function(err){
+            // エラー処理
+            console.log("Error", err);
+          });
+
+      // --mobile backend実装部分ここまで--
+
+    } else if (response.status === 'not_authorized') {
+      document.getElementById('status').innerHTML = 'Please log ' +
+        'into this app.';
+    } else {
+      document.getElementById('status').innerHTML = 'Please log ' +
+        'into Facebook.';
+    }
+  }
+
+  openFB.init({appId: APP_ID});
+  openFB.getLoginStatus(function(response) {
+    if(response.status === 'connected') {
+      openFB.api({
+        path: '/me',
+        success: function(user) {
+          response.authResponse.userID = user.id;
+          if (!response.authResponse.expiresIn)
+            response.authResponse.expiresIn = 5000;
+          statusChangeCallback(response);
+        },
+        error: function(error) {
+          // Do nothing.
+        }
+      });
+    } else {
+      alert('Facebook login failed: ' + response.error);
+    }
+  });
+  
+  function Login() {
+    openFB.login(function(response) {
+      if(response.status === 'connected') {
+        openFB.api({
+          path: '/me',
+          success: function(user) {
+            response.authResponse.userID = user.id;
+            statusChangeCallback(response);
+          },
+          error: function(error) {
+            console.error(error);
+          }
+        });
+      } else {
+        alert('Facebook login failed: ' + response.error);
+      }
+    }, {scope: 'email,read_stream,publish_actions'});
+  }
+  
+  function Logout() {
+    openFB.logout(function() {
+      var status = document.querySelector('#status');
+      status.innerText = "ログアウトしています"
+    },
+    function (err) {
+      console.erro(err);
+    });
+  }
+</script>
+<div id="login" onclick="Login()">ログイン</div>
+<div id="logout" onclick="Logout()">ログアウト</div>
+<div id="status">
+</div>
+</body>
+</html>
